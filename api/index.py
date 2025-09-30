@@ -4,22 +4,29 @@ from flask import Flask, render_template, request, jsonify
 import psycopg2
 import psycopg2.extras
 
-# Add the script directory to the Python path to import templates
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'script'))
+# Get the absolute path to the project root
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 app = Flask(__name__, 
-           template_folder=os.path.join(os.path.dirname(__file__), '..', 'script', 'templates'),
-           static_folder=os.path.join(os.path.dirname(__file__), '..', 'script', 'static'))
+           template_folder=os.path.join(BASE_DIR, 'script', 'templates'),
+           static_folder=os.path.join(BASE_DIR, 'script', 'static'))
 
-# Database configuration
-DEFAULT_DB_URL = os.getenv("CRDB_URL") or "postgresql://smriti:14IoOzwofyHsi1RhXlnC2g@transaction-flow-16380.j77.aws-ap-south-1.cockroachlabs.cloud:26257/defaultdb?sslmode=require"
-DEFAULT_TABLE = os.getenv("CRDB_TABLE") or "public.merkle"
+# Database configuration - use environment variables
+DEFAULT_DB_URL = os.getenv("CRDB_URL")
+DEFAULT_TABLE = os.getenv("CRDB_TABLE", "public.merkle")
+
+if not DEFAULT_DB_URL:
+    raise ValueError("CRDB_URL environment variable is required")
 
 def connect(db_url: str):
     """Connect to CockroachDB"""
-    conn = psycopg2.connect(db_url, cursor_factory=psycopg2.extras.RealDictCursor)
-    conn.set_session(autocommit=True)
-    return conn
+    try:
+        conn = psycopg2.connect(db_url, cursor_factory=psycopg2.extras.RealDictCursor)
+        conn.set_session(autocommit=True)
+        return conn
+    except Exception as e:
+        print(f"Database connection error: {str(e)}")
+        raise
 
 def query_rows(conn, table: str, creator: str, limit: int):
     """Query aggregated rows from the database"""
@@ -66,7 +73,10 @@ def get_total_value_sum(conn, table: str, creator: str) -> float:
 @app.route('/')
 def index():
     """Main page"""
-    return render_template('index.html')
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        return f"Template error: {str(e)}<br>Template folder: {app.template_folder}", 500
 
 @app.route('/query', methods=['POST'])
 def query_merkle():
@@ -120,6 +130,7 @@ def query_merkle():
     except Exception as e:
         return jsonify({'error': f'Request failed: {str(e)}'}), 500
 
-# This is the entry point for Vercel
-def handler(request):
-    return app(request.environ, lambda *args: None)
+@app.route('/health')
+def health():
+    """Health check endpoint"""
+    return jsonify({'status': 'ok', 'template_folder': app.template_folder})
