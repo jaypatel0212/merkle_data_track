@@ -4,11 +4,16 @@ from flask import Flask, render_template, request, jsonify
 import psycopg2
 import psycopg2.extras
 
-app = Flask(__name__)
+# Add the script directory to the Python path to import templates
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'script'))
+
+app = Flask(__name__, 
+           template_folder=os.path.join(os.path.dirname(__file__), '..', 'script', 'templates'),
+           static_folder=os.path.join(os.path.dirname(__file__), '..', 'script', 'static'))
 
 # Database configuration
-DEFAULT_DB_URL = os.getenv("CRDB_URL") or "postgresql://smriti:14IoOzwofyHsi1RhXlnC2g@transaction-flow-16380.j77.aws-ap-south-1.cockroachlabs.cloud:26257/defaultdb?sslmode=require"
-DEFAULT_TABLE = os.getenv("CRDB_TABLE") or "public.merkle"
+  DEFAULT_DB_URL = os.getenv("CRDB_URL")
+   DEFAULT_TABLE = os.getenv("CRDB_TABLE") or "public.merkle"
 
 def connect(db_url: str):
     """Connect to CockroachDB"""
@@ -115,5 +120,5 @@ def query_merkle():
     except Exception as e:
         return jsonify({'error': f'Request failed: {str(e)}'}), 500
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+# Export the Flask app for Vercel
+app = app
